@@ -1,12 +1,11 @@
 # Pagar.me Split Payment for WooCommerce
-Allow to define partners to split payment with using Pagar.me payment gateway.
-
-Below you will find some instructions about how to install the plugin. To know more about its functionalities, read the documentation [here](https://insus-tecnologia.github.io/pagarme-split-payment-woocommerce/).
+Allow you to use Sua Fabrica rules to split payment with using Pagar.me gateway.
 
 ## Requirements
-- [Woocommerce](https://github.com/woocommerce/woocommerce);
-- [WooCommerce Pagar.me](https://github.com/claudiosanches/woocommerce-pagarme) up and running;
-- Pagar.me account.
+- [Woocommerce];
+- [WooCommerce Pagar.me];
+- [ACF PRO] Options Page;
+- Pagar.me account (PSP + Split config)
 
 ## Install
 - Download latest release;
