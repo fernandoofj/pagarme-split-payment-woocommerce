@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sua Fábrica Pagar.me Split Payment for WooCommerce
  * Description: Allow you to use Sua Fabrica rules to split payment with using Pagar.me gateway.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: FLTECH
  * Author URI: https://suafabrica.com.br
  * Text Domain: suafabrica-pagarme-split-payment
@@ -34,30 +34,61 @@ class SplitRules
         $mainRecipientId = get_field('codigo_sua_fabrica_pagarme', 'option');
         $retailerRecipientId = get_field('codigo_recebedor_pagarme', 'option');
 
-        if(!$retailerRecipientId || !$mainRecipientId || !$paymentMethod)
-            return null;
+        $item = reset($order->get_items());
+        $isSubscription = $order->get_item_count() == 1 && $item != null && $item->get_product() != null && $item->get_product()->get_type() == 'subscription';
 
-        $paymentMethodParsed = str_replace("_","", strtolower($paymentMethod));
+        if (!$isSubscription) {
+            if (!$retailerRecipientId || !$mainRecipientId || !$paymentMethod) return null;
 
-        $fieldNameByPaymentMethod = array(
-            'creditcard' => 'percentual_credito',
-            'credit' => 'percentual_credito',
-            'debitcard' => 'percentual_debito',
-            'debit' => 'percentual_debito',
-            'pix' => 'percentual_pix',
-            'boleto' => 'percentual_boleto'
-        );
+            $paymentMethodParsed = str_replace("_","", strtolower($paymentMethod));
+            $fieldNameByPaymentMethod = array(
+                'creditcard' => 'percentual_credito',
+                'credit' => 'percentual_credito',
+                'debitcard' => 'percentual_debito',
+                'debit' => 'percentual_debito',
+                'pix' => 'percentual_pix',
+                'boleto' => 'percentual_boleto'
+            );
+            $percentageFieldKey = $fieldNameByPaymentMethod[$paymentMethodParsed];
 
-        $percentageFieldKey = $fieldNameByPaymentMethod[$paymentMethodParsed];
+            $pergentage = get_field($percentageFieldKey, 'option');
 
-        $pergentage = get_field($percentageFieldKey, 'option');
+            $partners = $this->partnersAmountOverOrder($order, $pergentage, $mainRecipientId, $retailerRecipientId);
 
-        $partners = $this->partnersAmountOverOrder($order, $pergentage, $mainRecipientId, $retailerRecipientId);
+            if (empty($partners)) return null;
 
-        if(empty($partners))
-            return null;
+            return $partners;
+        }
+        else {
+            $percentualFernando = get_field('percentual_fernando', 'option');
+            if (!$percentualFernando || $percentualFernando <= 5) throw new Exception('The split percentage was not configured yet');
 
-        return $partners;
+            $partners = $this->partnersAmountOverSubscription($order, $percentualFernando, $mainRecipientId, $retailerRecipientId);
+
+            if (empty($partners)) return null;
+
+            return $partners;
+        }
+    }
+
+    private function partnersAmountOverSubscription(\WC_Order $order, $percentualFernando, $mainRecipientId, $retailerRecipientId){
+
+        $logMessage = "Calculating split for subscription " . $order->get_id();
+        wc_get_logger()->info( $logMessage, array( 'source' => 'SUA_FABRICA' ) );
+
+        $fullOrderTotal = $order->get_total();
+        $fernandoTax = $fullOrderTotal * ($percentualFernando / 100);
+
+        $suaFabricaTotal = $fullOrderTotal - $fernandoTax;
+        $retailerTotal = $fernandoTax;
+
+        $suaFabricaTotal = round($suaFabricaTotal, 2, PHP_ROUND_HALF_UP);
+        $retailerTotal = round($retailerTotal, 2, PHP_ROUND_HALF_DOWN);
+
+        $logMessage = "Calculated split for subscripton " . $order->get_id() . ". [Sua Fabrica]: " . $suaFabricaTotal . " [Fernando]: " . $retailerTotal;
+        wc_get_logger()->info( $logMessage, array( 'source' => 'SUA_FABRICA' ) );
+
+        return $this->buildSplit($mainRecipientId, $retailerRecipientId, $suaFabricaTotal, $retailerTotal);
     }
 
     private function partnersAmountOverOrder(\WC_Order $order, $suaFabricaGatewayPercentage, $mainRecipientId, $retailerRecipientId)
