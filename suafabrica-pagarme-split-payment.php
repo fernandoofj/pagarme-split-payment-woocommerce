@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Sua Fábrica Pagar.me Split Payment for WooCommerce
  * Description: Allow you to use Sua Fabrica rules to split payment with using Pagar.me gateway.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: FLTECH
  * Author URI: https://suafabrica.com.br
  * Text Domain: suafabrica-pagarme-split-payment
@@ -38,20 +38,9 @@ class SplitRules
         $isSubscription = $order->get_item_count() == 1 && $item != null && $item->get_product() != null && $item->get_product()->get_type() == 'subscription';
 
         if (!$isSubscription) {
-            if (!$retailerRecipientId || !$mainRecipientId || !$paymentMethod) return null;
+            if (!$retailerRecipientId || !$mainRecipientId ) return null;
 
-            $paymentMethodParsed = str_replace("_","", strtolower($paymentMethod));
-            $fieldNameByPaymentMethod = array(
-                'creditcard' => 'percentual_credito',
-                'credit' => 'percentual_credito',
-                'debitcard' => 'percentual_debito',
-                'debit' => 'percentual_debito',
-                'pix' => 'percentual_pix',
-                'boleto' => 'percentual_boleto'
-            );
-            $percentageFieldKey = $fieldNameByPaymentMethod[$paymentMethodParsed];
-
-            $pergentage = get_field($percentageFieldKey, 'option');
+            $pergentage = get_field('taxa_administrativa', 'option');
 
             $partners = $this->partnersAmountOverOrder($order, $pergentage, $mainRecipientId, $retailerRecipientId);
 
@@ -61,7 +50,7 @@ class SplitRules
         }
         else {
             $percentualFernando = get_field('percentual_fernando', 'option');
-            if (!$percentualFernando || $percentualFernando <= 5) throw new Exception('The split percentage was not configured yet');
+            if (!$percentualFernando || $percentualFernando <= 10) throw new Exception('The split percentage was not configured yet');
 
             $partners = $this->partnersAmountOverSubscription($order, $percentualFernando, $mainRecipientId, $retailerRecipientId);
 
@@ -91,7 +80,7 @@ class SplitRules
         return $this->buildSplit($mainRecipientId, $retailerRecipientId, $suaFabricaTotal, $retailerTotal);
     }
 
-    private function partnersAmountOverOrder(\WC_Order $order, $suaFabricaGatewayPercentage, $mainRecipientId, $retailerRecipientId)
+    private function partnersAmountOverOrder(\WC_Order $order, $suaFabricaAdminTax, $mainRecipientId, $retailerRecipientId)
     {
         $logMessage = "Calculating split for order " . $order->get_id();
 
@@ -105,7 +94,7 @@ class SplitRules
 
         $fullOrderTotal = $order->get_total();
         $shippingTotal = $order->get_shipping_total();
-        $gatewayTax = $fullOrderTotal * ($suaFabricaGatewayPercentage / 100);
+        $gatewayTax = $fullOrderTotal * ($suaFabricaAdminTax / 100);
         $orderTotalCost = (float) $order->get_meta( '_wc_cog_order_total_cost', true, 'edit' );
 
         $suaFabricaTotal = $orderTotalCost + $shippingTotal + $gatewayTax;
@@ -115,12 +104,12 @@ class SplitRules
         ## EXEMPLO ##
 
         Pedido: R$ 500,00
-        Frete: R$ 27,00
+        Frete: R$ 20,00
         Preço de Custo Itens: R$ 300,00
-        Percentual Sua Fábrica: 3% = R$ 15,00
+        Percentual Sua Fábrica: 10% = R$ 50,00
 
-        Valor Sua Fábrica: 300 + 27 + 15 = 342
-        Valor Cliente: 500 - 342 = 158
+        Valor Sua Fábrica: 300 + 20 + 50 = 370
+        Valor Cliente: 500 - 370 = 130
         */
 
         $suaFabricaTotal = round($suaFabricaTotal, 2, PHP_ROUND_HALF_UP);
